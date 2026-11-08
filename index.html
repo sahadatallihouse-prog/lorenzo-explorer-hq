@@ -115,7 +115,7 @@ function showApprovedMusic(){
 }
 async function loadApprovedMusic(){
  if(!currentUser)return;
- const {data,error}=await db.from('approved_music').select('title,audio_url,is_active').eq('owner_id',currentUser.id);
+ const {data,error}=await db.from('approved_music').select('title,audio_url,is_active').eq('owner_id',currentUser.id).eq('child','Lorenzo');
  if(error){toast('Music library unavailable');return}
  approvedMusic=data||[];
 }
