@@ -19,6 +19,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 footer{text-align:center;padding:17px 0 5px;color:#648b9c;font-size:12px}.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#123b55;color:white;padding:11px 17px;border-radius:22px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s}.toast.show{opacity:1}
 @media(max-width:850px){.apps,.planner{grid-column:span 12}.stars,.quote{grid-column:span 6}.calendar{grid-column:span 12}}
 @media(max-width:520px){.wrap{padding:11px}.logo{width:48px;height:48px}.tag{font-size:11px}.clock{min-width:95px;padding:8px}.hero{border-radius:20px}.heroart{font-size:48px}.card{padding:14px;border-radius:19px}.appgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.stars,.quote{grid-column:span 12}.app{min-height:85px}}
+
+.child-timer-banner{position:sticky;top:8px;z-index:15;display:flex;align-items:center;gap:13px;margin:0 0 16px;padding:14px 17px;border-radius:18px;background:#e7faff;border:2px solid #36a8c8;box-shadow:0 8px 24px #0002}.child-timer-banner[hidden]{display:none}.timer-banner-icon{font-size:30px}.timer-banner-copy{display:grid;gap:2px;flex:1}.timer-banner-copy strong{font-size:15px}.timer-banner-copy span{font-size:clamp(25px,4vw,36px);font-weight:900;font-variant-numeric:tabular-nums}.timer-banner-copy small{font-size:12px}.child-timer-banner button{border:0;border-radius:12px;padding:10px 13px;background:#087fbd;color:white;font-weight:800;font-size:12px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -33,7 +35,7 @@ footer{text-align:center;padding:17px 0 5px;color:#648b9c;font-size:12px}.toast{
  </form>
 </div><div class="wrap">
 <header><div class="brand"><div class="logo">🦈</div><div><h1>Lorenzo</h1><div class="tag">EXPLORER HQ · DISCOVER, BUILD, EXPLORE 🌊</div></div></div><div class="clock"><strong id="time">--:--</strong><small id="date">Today</small></div></header>
-<section class="hero"><div><h2>Welcome, Explorer! 🌊</h2><p>Your mission starts here: build big, dive deep, ask questions, and discover something amazing!</p></div><div class="heroart">🦈🔬</div></section>
+<section class="hero"><div><h2>Welcome, Explorer! 🌊</h2><p>Your mission starts here: build big, dive deep, ask questions, and discover something amazing!</p></div><div class="heroart">🦈🔬</div></section><section id="childTimerBanner" class="child-timer-banner" hidden><div class="timer-banner-icon">⏱️</div><div class="timer-banner-copy"><strong id="childTimerTitle">Focus Time</strong><span id="childTimerCountdown">00:00</span><small id="childTimerMessage">Your timer is running</small></div><button id="enableTimerSound" type="button">Enable sound</button></section>
 <main class="grid">
 <section class="card apps"><h3>🧭 My Explorer Launchpad</h3><div class="appgrid">
 <button class="app" data-category="Ocean Videos"><span>▶️</span>Videos</button>
@@ -89,7 +91,7 @@ function drawTasks(){
 function drawStars(){$('starrow').innerHTML='';let count=Math.min(10,Math.max(5,Math.ceil((stars+1)/5)*5));for(let i=0;i<count;i++){let s=document.createElement('span');s.className='star'+(i<stars?'':' empty');s.textContent=i<stars?'★':'☆';$('starrow').append(s)}$('starCount').textContent=stars+' stars earned'+(stars>=5?' — superstar status!':'')}
 function clock(){let d=new Date();$('time').textContent=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});$('date').textContent=d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}
 function calendar(){let d=new Date(),y=d.getFullYear(),m=d.getMonth(),first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate();$('month').textContent=d.toLocaleDateString([],{month:'long',year:'numeric'});$('days').innerHTML='';'SMTWTFS'.split('').forEach(x=>{let b=document.createElement('b');b.textContent=x;$('days').append(b)});for(let i=0;i<first;i++)$('days').append(document.createElement('span'));for(let n=1;n<=last;n++){let s=document.createElement('span');s.textContent=n;if(n===d.getDate())s.className='today';$('days').append(s)}}
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginButton').textContent='Signing in…';showError('');const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});$('loginButton').disabled=false;$('loginButton').textContent='Sign in';if(error){showError(error.message);return}currentUser=data.user;showLogin(false);await loadTasks();await loadApprovedVideos();await loadApprovedMusic()});
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginButton').textContent='Signing in…';showError('');const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});$('loginButton').disabled=false;$('loginButton').textContent='Sign in';if(error){showError(error.message);return}currentUser=data.user;showLogin(false);await loadTasks();await loadApprovedVideos();await loadApprovedMusic();await refreshChildTimer()});
 $('addTask').onclick=async()=>{let v=$('newTask').value.trim();if(!v)return;const {data,error}=await db.from('family_tasks').insert({owner_id:currentUser.id,child:'Lorenzo',title:v,is_completed:false}).select('id,title,is_completed').single();if(error){toast('Could not add task: '+error.message);return}tasks.push({id:data.id,text:data.title,done:data.is_completed});$('newTask').value='';drawTasks()};
 $('newTask').addEventListener('keydown',e=>{if(e.key==='Enter')$('addTask').click()});
 $('earn').onclick=()=>{stars++;drawStars();toast('Excellent exploring, Lorenzo! 🏆')};
@@ -128,8 +130,31 @@ async function loadApprovedVideos(){if(!currentUser)return;const {data,error}=aw
 document.querySelectorAll('.app[data-url]').forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.url,'_blank','noopener')));
 document.querySelectorAll('.app[data-category]').forEach(b=>b.addEventListener('click',()=>showApprovedVideos(b.dataset.category)));
 
+
+let timerAudioContext=null,timerSoundEnabled=false,lastAlarmRun='';
+document.getElementById('enableTimerSound').addEventListener('click',async()=>{
+ try{const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)throw new Error('Audio is not supported');timerAudioContext=timerAudioContext||new AudioCtx();await timerAudioContext.resume();timerSoundEnabled=true;document.getElementById('enableTimerSound').textContent='Sound enabled ✓'}catch(e){document.getElementById('enableTimerSound').textContent='Sound unavailable'}
+});
+function playTimerAlarm(){
+ if(!timerSoundEnabled||!timerAudioContext)return;
+ try{[0,350,700].forEach(delay=>setTimeout(()=>{const osc=timerAudioContext.createOscillator(),gain=timerAudioContext.createGain();osc.connect(gain);gain.connect(timerAudioContext.destination);osc.frequency.value=880;gain.gain.setValueAtTime(.0001,timerAudioContext.currentTime);gain.gain.exponentialRampToValueAtTime(.25,timerAudioContext.currentTime+.03);gain.gain.exponentialRampToValueAtTime(.0001,timerAudioContext.currentTime+.28);osc.start();osc.stop(timerAudioContext.currentTime+.3)},delay))}catch(e){}
+}
+async function refreshChildTimer(){
+ if(!currentUser)return;
+ const {data,error}=await db.from('child_timers').select('child,status,ends_at,paused_remaining_seconds,label,run_id').eq('child','Lorenzo').maybeSingle();
+ if(error){console.warn('Timer sync issue',error.message);return}
+ const banner=document.getElementById('childTimerBanner');
+ if(!data||data.status==='stopped'){banner.hidden=true;return}
+ banner.hidden=false;
+ document.getElementById('childTimerTitle').textContent=data.label||'Focus Time';
+ let remaining=data.status==='paused'?Math.max(0,Number(data.paused_remaining_seconds)||0):Math.max(0,Math.ceil((new Date(data.ends_at).getTime()-Date.now())/1000));
+ document.getElementById('childTimerCountdown').textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');
+ document.getElementById('childTimerMessage').textContent=data.status==='paused'?'Timer paused':remaining===0?"Time's up! Great work!":'Your timer is running';
+ if(data.status==='running'&&remaining===0&&data.run_id&&lastAlarmRun!==data.run_id){lastAlarmRun=data.run_id;playTimerAlarm()}
+}
+
 db.auth.getSession().then(async({data,error})=>{if(error||!data.session){showLogin(true);return}currentUser=data.session.user;showLogin(false);await loadTasks();await loadApprovedVideos();await loadApprovedMusic()});
 db.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){currentUser=null;tasks=[];showLogin(true)}});
-drawStars();clock();calendar();setInterval(clock,30000);setInterval(loadApprovedVideos,15000);setInterval(loadApprovedMusic,15000);
+drawStars();clock();calendar();setInterval(clock,30000);setInterval(loadApprovedVideos,15000);setInterval(loadApprovedMusic,15000);setInterval(refreshChildTimer,2500);
 </script>
 </body></html>
