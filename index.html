@@ -37,7 +37,7 @@ footer{text-align:center;padding:17px 0 5px;color:#648b9c;font-size:12px}.toast{
 <main class="grid">
 <section class="card apps"><h3>🧭 My Explorer Launchpad</h3><div class="appgrid">
 <button class="app" data-category="Ocean Videos"><span>🐋</span>Ocean Videos</button>
-<button class="app" data-url="https://music.amazon.com/"><span>🎧</span>Sound Lab</button>
+<button class="app" data-music="true"><span>🎧</span>Sound Lab</button>
 <button class="app" data-url="https://kids.nationalgeographic.com/"><span>📚</span>Reading Lab</button>
 <button class="app" data-url="https://awesomeearthmovers.com/news/category/blog/"><span>🚜</span>Heavy Machines</button>
 <button class="app" data-url="https://www.kidsnews.com.au/animals"><span>🦈</span>Animal Explorer</button>
@@ -56,7 +56,7 @@ const SUPABASE_URL = "https://wadlanikeoirzvjutokn.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_j1b897taWTMPsot0TzkEAg_fhJQjNWp";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $=id=>document.getElementById(id);
-let currentUser=null, tasks=[], stars=0, approvedVideos=[];
+let currentUser=null, tasks=[], stars=0, approvedVideos=[], approvedMusic=[];
 const thoughts=['I am curious, brave, and ready to discover! 💖','Every experiment begins with a question.','I can build, test, learn, and improve.','Asking questions is how scientists grow.','The ocean is full of amazing mysteries.','Big discoveries start with curious minds!'];
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),1700)}
 function showLogin(show){$('loginGate').style.display=show?'grid':'none'}
@@ -89,7 +89,7 @@ function drawTasks(){
 function drawStars(){$('starrow').innerHTML='';let count=Math.min(10,Math.max(5,Math.ceil((stars+1)/5)*5));for(let i=0;i<count;i++){let s=document.createElement('span');s.className='star'+(i<stars?'':' empty');s.textContent=i<stars?'★':'☆';$('starrow').append(s)}$('starCount').textContent=stars+' stars earned'+(stars>=5?' — superstar status!':'')}
 function clock(){let d=new Date();$('time').textContent=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});$('date').textContent=d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}
 function calendar(){let d=new Date(),y=d.getFullYear(),m=d.getMonth(),first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate();$('month').textContent=d.toLocaleDateString([],{month:'long',year:'numeric'});$('days').innerHTML='';'SMTWTFS'.split('').forEach(x=>{let b=document.createElement('b');b.textContent=x;$('days').append(b)});for(let i=0;i<first;i++)$('days').append(document.createElement('span'));for(let n=1;n<=last;n++){let s=document.createElement('span');s.textContent=n;if(n===d.getDate())s.className='today';$('days').append(s)}}
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginButton').textContent='Signing in…';showError('');const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});$('loginButton').disabled=false;$('loginButton').textContent='Sign in';if(error){showError(error.message);return}currentUser=data.user;showLogin(false);await loadTasks();await loadApprovedVideos()});
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginButton').textContent='Signing in…';showError('');const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});$('loginButton').disabled=false;$('loginButton').textContent='Sign in';if(error){showError(error.message);return}currentUser=data.user;showLogin(false);await loadTasks();await loadApprovedVideos();await loadApprovedMusic()});
 $('addTask').onclick=async()=>{let v=$('newTask').value.trim();if(!v)return;const {data,error}=await db.from('family_tasks').insert({owner_id:currentUser.id,child:'Lorenzo',title:v,is_completed:false}).select('id,title,is_completed').single();if(error){toast('Could not add task: '+error.message);return}tasks.push({id:data.id,text:data.title,done:data.is_completed});$('newTask').value='';drawTasks()};
 $('newTask').addEventListener('keydown',e=>{if(e.key==='Enter')$('addTask').click()});
 $('earn').onclick=()=>{stars++;drawStars();toast('Excellent exploring, Lorenzo! 🏆')};
@@ -97,14 +97,39 @@ $('reset').onclick=()=>{if(confirm('Reset the reward stars?')){stars=0;drawStars
 $('newQuote').onclick=()=>{$('quote').textContent=thoughts[Math.floor(Math.random()*thoughts.length)]};
 
 function youtubeEmbed(url){try{const u=new URL(url);let id='';if(u.hostname.includes('youtu.be'))id=u.pathname.slice(1);else if(u.hostname.includes('youtube.com')){if(u.pathname==='/watch')id=u.searchParams.get('v')||'';else if(u.pathname.startsWith('/embed/'))id=u.pathname.split('/')[2]||'';else if(u.pathname.startsWith('/shorts/'))id=u.pathname.split('/')[2]||'';}return id?'https://www.youtube-nocookie.com/embed/'+encodeURIComponent(id)+'?rel=0&modestbranding=1':null}catch(e){return null}}
+ 
+function showApprovedMusic(){
+ const list=approvedMusic.filter(v=>v.is_active);
+ const modal=$('videoModal'),player=$('videoPlayer');
+ $('videoModalTitle').textContent='Sound Lab 🎵';
+ player.innerHTML='';
+ if(!list.length){player.innerHTML='<div style="color:white;display:grid;place-items:center;height:100%;padding:20px;text-align:center">No music has been added yet. Ask your grown-up to add a track! 🎵</div>';modal.style.display='grid';return}
+ const choices=document.createElement('div');
+ choices.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:12px';
+ list.forEach(v=>{
+  const b=document.createElement('button');b.className='btn';b.textContent='▶ '+v.title;
+  b.onclick=()=>{player.innerHTML='';const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src=v.audio_url;audio.style.cssText='width:100%;margin:22px 0';const title=document.createElement('div');title.textContent=v.title;title.style.cssText='color:white;text-align:center;padding:18px;font-weight:bold';player.append(title,audio)};
+  choices.append(b);
+ });
+ player.append(choices);modal.style.display='grid';
+}
+async function loadApprovedMusic(){
+ if(!currentUser)return;
+ const {data,error}=await db.from('approved_music').select('title,audio_url,is_active').eq('owner_id',currentUser.id);
+ if(error){toast('Music library unavailable');return}
+ approvedMusic=data||[];
+}
+$('closeVideo').addEventListener('click',()=>{const a=$('videoPlayer').querySelector('audio');if(a)a.pause()});
+document.querySelectorAll('.app[data-music]').forEach(b=>b.addEventListener('click',showApprovedMusic));
+
 function showApprovedVideos(category){const today=new Date().toISOString().slice(0,10);const list=approvedVideos.filter(v=>v.category===category&&v.is_active&&v.available_from<=today&&(!v.available_until||v.available_until>=today));const modal=$('videoModal'),player=$('videoPlayer');$('videoModalTitle').textContent=category;player.innerHTML='';if(!list.length){player.innerHTML='<div style="color:white;display:grid;place-items:center;height:100%;padding:20px;text-align:center">No videos have been added for this category yet. Ask your grown-up to choose one! 🌟</div>';modal.style.display='grid';return}const choices=document.createElement('div');choices.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:12px';list.forEach(v=>{const b=document.createElement('button');b.className='btn';b.textContent='▶ '+v.title;b.onclick=()=>{player.innerHTML='';const embed=youtubeEmbed(v.video_url);if(embed){const f=document.createElement('iframe');f.src=embed;f.title=v.title;f.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen';f.allowFullscreen=true;f.referrerPolicy='strict-origin-when-cross-origin';f.style.cssText='width:100%;height:100%;border:0';player.append(f)}else{const a=document.createElement('a');a.href=v.video_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Open approved video: '+v.title;a.style.cssText='color:white;display:grid;place-items:center;height:100%;padding:20px';player.append(a)}};choices.append(b)});player.append(choices);modal.style.display='grid'}
 $('closeVideo').onclick=()=>{$('videoModal').style.display='none';$('videoPlayer').innerHTML=''};$('videoModal').addEventListener('click',e=>{if(e.target===$('videoModal'))$('closeVideo').click()});
 async function loadApprovedVideos(){if(!currentUser)return;const {data,error}=await db.from('approved_videos').select('category,title,video_url,available_from,available_until,is_active').eq('owner_id',currentUser.id);if(error){toast('Video library unavailable');return}approvedVideos=data||[]}
 document.querySelectorAll('.app[data-url]').forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.url,'_blank','noopener')));
 document.querySelectorAll('.app[data-category]').forEach(b=>b.addEventListener('click',()=>showApprovedVideos(b.dataset.category)));
 
-db.auth.getSession().then(async({data,error})=>{if(error||!data.session){showLogin(true);return}currentUser=data.session.user;showLogin(false);await loadTasks();await loadApprovedVideos()});
+db.auth.getSession().then(async({data,error})=>{if(error||!data.session){showLogin(true);return}currentUser=data.session.user;showLogin(false);await loadTasks();await loadApprovedVideos();await loadApprovedMusic()});
 db.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){currentUser=null;tasks=[];showLogin(true)}});
-drawStars();clock();calendar();setInterval(clock,30000);setInterval(loadApprovedVideos,15000);
+drawStars();clock();calendar();setInterval(clock,30000);setInterval(loadApprovedVideos,15000);setInterval(loadApprovedMusic,15000);
 </script>
 </body></html>
