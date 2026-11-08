@@ -99,5 +99,5 @@ document.querySelectorAll('.app').forEach(b=>b.addEventListener('click',()=>wind
 db.auth.getSession().then(async({data,error})=>{if(error||!data.session){showLogin(true);return}currentUser=data.session.user;showLogin(false);await loadTasks()});
 db.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){currentUser=null;tasks=[];showLogin(true)}});
 drawStars();clock();calendar();setInterval(clock,30000);
-
+</script>
 </body></html>
